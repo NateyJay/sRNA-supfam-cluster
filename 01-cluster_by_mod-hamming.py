@@ -216,12 +216,12 @@ for dist_cutoff in cutoff_list:
 	print "   {} <- keys".format(len(keys))
 	print "   {} <- superfamilies".format(len(superfamilies))
 
-	species = ["cca","cgr-dp","cgr-pm","cgr-mass","cpe-2015","cpe-2017","cind"]
+	# species = ["cca","cgr-dp","cgr-pm","cgr-mass","cpe-2015","cpe-2017","cind"]
 	fam_counter = 0
 	with open("01out-d{}.superfamilies.txt".format(dist_cutoff), "w") as f:
-		to_print = "cluster\tsequence\tspecies\tsuperfamily\teulercode"
-		for spec in species:
-			to_print = "{}\t{}".format(to_print, spec)
+		to_print = "cluster\tsequence\tsuperfamily"
+		# for spec in species:
+		# 	to_print = "{}\t{}".format(to_print, spec)
 		print >> f, to_print
 		for fam in superfamilies:
 			fam_counter += 1
@@ -237,33 +237,12 @@ for dist_cutoff in cutoff_list:
 
 				# print cluster
 				cluster_name = cluster[0]
-				cluster_species = cluster[0].split("_")[1]
 
 
-				species_contained.append(cluster_species)
-				entry = (cluster_name, cluster[1], cluster_species)
-				entries.append(entry)
+				to_print = [cluster_name, cluster[1], fam_name]
+	
 
-
-			euler_key = []
-
-			for spec in species:
-				if spec in species_contained:
-					euler_key.append("1")
-				else:
-					euler_key.append("0")
-			species_contained = list(set(species_contained))
-
-			species_contained.sort()
-
-			for entry in entries:
-
-				spec_id = "&".join(species_contained)
-
-				# euler_key = "\t".join(map(str, euler_key))
-
-				to_print = list(entry) + [fam_name, spec_id] + euler_key
-				to_print = "\t".join(to_print).replace('cca','ccm').replace('cind','cin')
+				to_print = "\t".join(to_print)
 
 				# print to_print
 				print >> f, to_print
