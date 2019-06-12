@@ -3,14 +3,12 @@ import os
 import subprocess
 import Levenshtein
 import argparse
-# import networkx as nx
-# import matplotlib.pyplot as plt
-# import itertools
 import operator
 import pickle
 
 from tqdm import tqdm
 
+# processing inputs from command line
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-file', nargs='?',required=True)
@@ -29,6 +27,9 @@ if file[-3:] != ".fa":
 if max(cutoff_list) > 15:
 	print "FATAL: distance of 15 is the maximum accepted by the program. sRNAs more distant than even 10 are likely unrelated."
 	sys.exit()
+
+# this function defines the modified Hamming distance. It basically just tries all substrings (length = the shorter of the two strings) with the standard Hamming algorithm.
+# max_cutoff is important, because larger cutoffs mean that you have to test more overhangs to find their distance. This function only finds distance up to the maximum user specified distance.
 
 def superhamming(inpA, inpB, max_cutoff):
 
@@ -69,15 +70,15 @@ def superhamming(inpA, inpB, max_cutoff):
 clusters_by_library = {}
 nodes_by_library = {}
 clusters = []
-# num_files = len(cluster_files)
-# num_files = 7
 
-# file = '/Volumes/Keep/+Cuscuta_evolution/NextSeq_Sep2018_sRNAseq//clustering_trimmed/04out-all.clusters.HI.txt'
+
+# reading in fasta file
+
 with open(file, "r") as f:
 	lines = f.readlines()
 
 for line in lines:
-# for line in lines[1:500]:
+
 
 	line = line.strip()
 	if line[0] == ">":
@@ -89,26 +90,8 @@ for line in lines:
 
 		clusters.append(entry)
 
-# for i, file in enumerate(cluster_files):
-# 	print i, file
 
-# 	clusters_by_library[species[i]] = []
-# 	nodes_by_library[i] = []
-
-# 	with open(file, "r") as f:
-# 		for line in f:
-# 			line = line.strip()
-# 			if line[0] == ">":
-# 				read_name = line[1:]
-# 			else:
-# 				seq = line
-
-# 				entry = (read_name, seq)
-# 				clusters.append(entry)
-# 				clusters_by_library[species[i]].append(entry)
-
-# print len(clusters)
-# sys.exit()
+# making a dictionary of relationships under the specified distance for each tested cutoff.
 
 relationships = {}
 for cutoff in cutoff_list:
@@ -116,27 +99,16 @@ for cutoff in cutoff_list:
 
 max_cutoff = max(cutoff_list)
 
-# relationships = {0:{}, 2:{}, 5:{}}
-# for dist_cutoff in [0,2,5]:
-# 	relationships[dist_cutoff] = {}
-# clusters = clusters[:200]
 
-# all_file = "00sub-allbyall.dict"
 
-# if all_ is True:
-# 	print 'all by all dict found!'
-# 	with open(all_file, 'r') as d:
-# 		relationships = pickle.load(d)
-
-# else:
-# 	print 'all by all dict not found...'
 print '  building all by all distance matrix'
 pbar = tqdm(total=len(clusters))
 for i, i_entry in enumerate(clusters):
 	pbar.update(1)
 	for dist_cutoff in cutoff_list:
 		relationships[dist_cutoff][i] = [i]
-	# relationships[i] = [i]
+
+
 	for j, j_entry in enumerate(clusters):
 
 		if i != j:
@@ -151,11 +123,14 @@ for i, i_entry in enumerate(clusters):
 					relationships[dist_cutoff][i].append(j)
 
 pbar.close()
-# print '  writing to file "00sub-allbyall.dict"'
-# with open(all_file, 'w') as d:
-# 	pickle.dump(relationships, d)
+
+
+# for each of those cutoffs, we find the superfamily structure
 
 for dist_cutoff in cutoff_list:
+
+	# first sorting the reads by the number of connections (most connected are considered first)
+
 	print "for dist_cutoff = {}".format(dist_cutoff)
 	print "   Sorting by depth..."
 	keys = []
@@ -165,8 +140,9 @@ for dist_cutoff in cutoff_list:
 		isgrouped[key] = False
 
 	keys.sort(key=operator.itemgetter(1), reverse=True)
-	# print
 
+
+	# Next it processes each read looking for positively grouped reads and grouping them by superfamily name. This is recursive/inclusive, meaning if a connection path can connect an sRNA to a superfamily exists, it is then grouped in that superfamily.
 
 	print "   Building superfamily structure..."
 	superfamilies = []
@@ -179,17 +155,12 @@ for dist_cutoff in cutoff_list:
 
 				found_keys = relationships[dist_cutoff][key]
 
-
 				key_buffer = list(found_keys[1:])
-				# print "KB:",key_buffer
 
 				while True:
 					if key_buffer == []:
 						break
 					new_key = key_buffer.pop()
-					# print "KB:", key_buffer
-					# print new_key
-
 
 					new_found_keys = relationships[dist_cutoff][new_key]
 					if len(new_found_keys) > 1:
@@ -201,28 +172,24 @@ for dist_cutoff in cutoff_list:
 
 				found_keys = relationships[dist_cutoff][key]
 
-				# print "KB:",key_buffer
-
-
-
 			found_keys = list(set(found_keys))
 			for k in found_keys:
 				isgrouped[k] = True
 			superfamilies.append(found_keys)
-		# for i in found_keys:
-		# 	print i
-		# 	del relationships[i]
+
+
+	# once the structure of the superfamilies is found, the program writes these to a file
 
 	print "   {} <- keys".format(len(keys))
 	print "   {} <- superfamilies".format(len(superfamilies))
 
-	# species = ["cca","cgr-dp","cgr-pm","cgr-mass","cpe-2015","cpe-2017","cind"]
+
 	fam_counter = 0
 	with open("01out-d{}.superfamilies.txt".format(dist_cutoff), "w") as f:
 		to_print = "cluster\tsequence\tsuperfamily"
-		# for spec in species:
-		# 	to_print = "{}\t{}".format(to_print, spec)
+
 		print >> f, to_print
+		
 		for fam in superfamilies:
 			fam_counter += 1
 
@@ -232,32 +199,15 @@ for dist_cutoff in cutoff_list:
 			species_contained = []
 			for i in fam:
 				cluster = clusters[i]
-				# print cluster
 
-
-				# print cluster
 				cluster_name = cluster[0]
+				cluster_seq = cluster[1]
 
-
-				to_print = [cluster_name, cluster[1], fam_name]
+				to_print = [cluster_name, cluster_seq, fam_name]
 	
-
 				to_print = "\t".join(to_print)
 
-				# print to_print
 				print >> f, to_print
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
